@@ -99,6 +99,7 @@ def shift_type(date,dn):  # expects a timestamp for date
     dn_aslist  =dn.tolist()
     outlist = np.ones_like(dn_aslist)
     day_no =list(map(lambda f: f.weekday(),date_aslist))
+    dow = list(map(lambda f: f.strftime("%a"),date_aslist))
     for i in range(len( day_no)):
         if day_no[i] < 4:
             outlist[i] = 'D'
@@ -108,7 +109,7 @@ def shift_type(date,dn):  # expects a timestamp for date
             if day_no[i] == 6: outlist[i] =  'E'
         else:
             outlist[i] =  'E'
-    return outlist
+    return outlist,dow
 
 def shift_pay(shift,ot):   #expects (shift): in [D,H,E], (ot) : float num of hours
     return ( (12+ot)* rates[shift])
@@ -203,17 +204,10 @@ dummy_col = np.zeros(tot_shifts)
     
 # after that comes an error check:
     
-    # TODO : ask for overtime
+    # TODO 
     # list of docs working? 
         #for i in PT, if i not in ww.name, print (i, " has no shifts")
-    # TO DO: check for holidays
-        # list all 'Type' == H, ask for others
 
-
-# insert something here that looks for shifts that aren't d or n in dn2
-        # should already be gone from the earlier thing...but might be better
-        #to put this check first and clean out a lot of the meetings.
-        # this would require moving line 104 up
 
 
 #workwith['dn2']=workwith['dn']
@@ -228,10 +222,87 @@ workwith['dn']= workwith['dn'].apply((lambda row: dn_to_text(row)))
                 #creates a new column that elementwise maps the dn2text fn onto 'dn'
                 #CHRIS:
                 #this works but throws an error SettingWithCopyWarning
+workwith['dow']= dummy_col
                 
-workwith['type']= shift_type(workwith.date,workwith.dn)
+workwith['type'],workwith['dow']= shift_type(workwith.date,workwith.dn)
+
+
+# ask for overtime:
+x= input('Any Overtime? (Y or N)')
+if x[0] in ['Y', 'y']:
+        while True:
+            which_day = int(input('On what day?')) #need to put an error trap on this
+            print(workwith.iloc[(which_day * 2 -2):(which_day * 2),0:4])
+            how_much = float(input('How many hours (as a decimal)'))
+            dn = input('Which shift? Day or Night (d/n)')
+            if dn[0] in ['D','d','N','n']:
+                if dn[0] in ['D','d']:
+                    dummy_col[(which_day * 2 -2)]= how_much
+                else:
+                    dummy_col[(which_day * 2 -1)]= how_much
+                x= input('another? (y/n)')
+                if x[0] in ['Y', 'y']:
+                    continue
+                else: 
+                    break
+           
+            else:
+                restart = input("Sorry, didn't catch that, try again? (y/n)")
+                if restart[0] in ['Y', 'y']:
+                    continue
+                else:
+                    break
+        #CHRIS: best practice "error trapping"           
 
 workwith['Overtime'] = dummy_col
 
-# do I 
+# check for holidays
+print("This months' holidays are:")
+hols = workwith[workwith.type =='H']
+hols2= hols[['name','date','dow','dn']]
+print(hols2)
+x= input('Any Other Holidays? (Y or N)')
+if x[0] in ['Y', 'y']:
+        while True:
+            which_day = int(input('On what day?')) #need to put an error trap on this
+            print(workwith.iloc[(which_day * 2 -2):(which_day * 2)])
+            # good tutorial on how to do this at:
+            #https://www.shanelynn.ie/select-pandas-dataframe-rows-and-columns-using-iloc-loc-and-ix/
+            dn = input('Which shift? Day, Night or Both (d/n/b)?')
+            if dn[0] in ['D','d','N','n','b','B']:
+                if dn[0] in ['B','b']:
+                    workwith.type.iloc[(which_day * 2 -2):(which_day *2)]= 'H'
+                elif dn[0] in ['D','d']:
+                    workwith.type.iloc[(which_day * 2 -2)]= 'H'
+                else:
+                    workwith.type.iloc[(which_day * 2-1)]= 'H'
+                x= input('another? (y/n)')
+                if x[0] in ['Y', 'y']:
+                    continue
+                else: 
+                    break
+           
+            else:
+                restart = input("Sorry, didn't catch that, try again? (y/n)")
+                if restart[0] in ['Y', 'y']:
+                    continue
+                else:
+                    break
+"""
+#Chris, this above routine works, but I get this warning:
+                    /Users/Steve/opt/anaconda3/lib/python3.7/site-packages/pandas/core/indexing.py:205: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame
+
+See the caveats in the documentation: http://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  self._setitem_with_indexer(indexer, value)
+  
+  I think you told me there's a way to turn this off? 
+  
+  Also, Worth a discussion of whether I should "functionalize" this.
+  I didnt cuz it's working on the whole dataframe, so seems silly
+      to send the entire dataframe to a function and then return it...
+  
+  """ 
+
+
 
